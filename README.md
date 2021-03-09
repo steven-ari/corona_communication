@@ -1,5 +1,10 @@
 # corona_communication
 
+Alphabeth recognition using real time finger gesturing. This way it is possible to communicate purely with gestures, including to machines to prevent contacts with button on public places.
+
+### System
+
+1. Raspberry Pi 4 Model B
 
 ### Dataset of Choice
 
@@ -7,3 +12,6 @@
 <br>
 Cohen, G., Afshar, S., Tapson, J., & van Schaik, A. (2017).
 <br>
+
+
+![](sample_images/emnist_example.png)
