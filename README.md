@@ -1,6 +1,6 @@
 # corona_communication
 
-Alphabeth recognition using real time finger gesturing. This way it is possible to communicate purely with gestures, including to machines to prevent contacts with button on public places.
+Alphabeth recognition using real time finger gesturing. This way, it is possible to communicate purely with finger gestures, including to machines to prevent contacts with button on public places.
 
 ### System
 
