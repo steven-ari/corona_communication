@@ -5,6 +5,7 @@ Alphabeth recognition using real time finger gesturing. This way it is possible 
 ### System
 
 1. Raspberry Pi 4 Model B
+2. Raspberry Pi NoIR Camera V2 
 
 ### Dataset of Choice
 
