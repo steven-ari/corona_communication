@@ -30,6 +30,7 @@ from threading import Thread
 import importlib.util
 import random as rng
 from math import floor
+import matplotlib.pyplot as plt
 
 rng.seed(12345)
 
@@ -39,7 +40,7 @@ rng.seed(12345)
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
 
-    def __init__(self, resolution=(640, 480), framerate=30):
+    def __init__(self, resolution=(540, 540), framerate=30):
         # Initialize the PiCamera and the camera image stream
         self.stream = cv2.VideoCapture(0)
         ret = self.stream.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
@@ -130,10 +131,26 @@ skinColorLower = np.array([5, 0.2 * 255, 0.2 * 255])
 
 # counters
 counter_sec = 3.99
+drawing_done_flag = False
+point_library = []
+
+
+def hull_area(hull_list_input):
+
+    hull_area_list = []
+    for hull in hull_list_input:
+        x = np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0]))
+        y = np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1]))
+        hull_area_list.append(x*y)
+
+    hull_area_list = np.array(hull_area_list)
+    highest_idx = np.argmin(hull_list_input[np.argmax(hull_area_list)][:, :, 1])
+    highest = (hull_list_input[np.argmax(hull_area_list)][highest_idx, 0, 0],
+               hull_list_input[np.argmax(hull_area_list)][highest_idx, 0, 1])
+    return highest
 
 # for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
-
     # Start timer (for calculating frame rate)
     t1 = cv2.getTickCount()
 
@@ -162,7 +179,7 @@ while True:
     contour_idx_list = []
     for i in range(len(contours)):
         hull = cv2.convexHull(contours[i])
-        if (np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1])) > 200 and np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0])) > 50) or i == 0:
+        if (np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1])) > 200 and np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0])) > 50) or i < 2:
             contour_idx_list.append(i)
             hull_list.append(hull)
 
@@ -178,30 +195,48 @@ while True:
     drawing = cv2.putText(drawing, 'Start', (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
     # counter to start gesture recognition
-    # if start
-    if counter_sec > 0:
+    highest = hull_area(hull_list)
+    if 0 < highest[0] < 150 and 0 < highest[1] < 100:
         drawing = cv2.putText(drawing, str(floor(counter_sec)), (180, 75), cv2.FONT_HERSHEY_SIMPLEX, 2, (10, 10, 200), 2, cv2.LINE_AA)
         time.sleep(0.05)
         counter_sec -= 0.1
         if counter_sec < 0.1:
             counter_sec = 3.99
 
-    cv2.imshow('res', res)
-    cv2.imshow('mask', blurred)
+    # determine largest hull
+    highest = hull_area(hull_list)
+    point_library.append(highest)
+    time.sleep(0.05)
+    # calculate highest, mark with red ball
+    for points in point_library:
+        drawing = cv2.circle(drawing, (points[0], points[1]), 20, (200, 10, 10), -1)
+    if len(point_library) > 200:
+        drawing_done_flag = True
+    drawing = cv2.circle(drawing, (highest[0], highest[1]), 20, (10, 10, 200), -1)
+
+    # convert point library to emnist image
+    if drawing_done_flag:
+        pred_canvas = np.zeros_like(res)
+        for points in point_library:
+            pred_canvas = cv2.circle(pred_canvas, (points[0], points[1]), 30, (255, 255, 255), -1)
+        point_library = []
+        # crop
+        pred_canvas = pred_canvas[:, 210:(210+540), 0]
+        pred_canvas = cv2.resize(pred_canvas, (28, 28), interpolation=cv2.INTER_NEAREST)
+        a = 1
+
+        # Acquire frame and resize to expected shape [1xHxWx3]
+        input_data = np.expand_dims(pred_canvas, axis=0).astype('float32')
+        input_data = np.expand_dims(input_data, axis=-1).astype('float32')
+
+        # Perform the actual detection by running the model with the image as input
+        interpreter.set_tensor(input_details[0]['index'], input_data)
+        interpreter.invoke()
+        output_data = interpreter.get_tensor(output_details[0]['index'])
+        pred = np.argmax(output_data[0])
+        drawing = cv2.putText(drawing, str(pred), (300, 300), cv2.FONT_HERSHEY_SIMPLEX, 3, (10, 10, 200), 2, cv2.LINE_AA)
+
     cv2.imshow('Contours', drawing)
     k = cv2.waitKey(5)
-
-    """# Acquire frame and resize to expected shape [1xHxWx3]
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    frame_resized = cv2.resize(frame_rgb, (width, height))
-    input_data = np.expand_dims(frame_resized, axis=0)
-
-    # Normalize pixel values if using a floating model (i.e. if model is non-quantized)
-    if floating_model:
-        input_data = (np.float32(input_data) - input_mean) / input_std
-
-    # Perform the actual detection by running the model with the image as input
-    interpreter.set_tensor(input_details[0]['index'], input_data)
-    interpreter.invoke()"""
 
 cv2.destroyAllWindows()
