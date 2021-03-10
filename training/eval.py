@@ -29,6 +29,7 @@ import time
 from threading import Thread
 import importlib.util
 import random as rng
+from math import floor
 
 rng.seed(12345)
 
@@ -125,7 +126,10 @@ cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
 
 # for selecting hand
 skinColorUpper = np.array([20, 0.8 * 255, 0.8 * 255])
-skinColorLower = np.array([5, 0.18 * 255, 0.5 * 255])
+skinColorLower = np.array([5, 0.2 * 255, 0.2 * 255])
+
+# counters
+counter_sec = 3.99
 
 # for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
 while True:
@@ -143,7 +147,7 @@ while True:
     res = cv2.bitwise_and(frame, frame, mask=mask)
 
     # smooth mask
-    blurred = cv2.GaussianBlur(mask, (21, 21), 6)
+    blurred = cv2.GaussianBlur(mask, (21, 21), 8)
     blurred = (blurred > 127) * 255
     blurred = np.array(blurred).astype('uint8')
 
@@ -158,21 +162,30 @@ while True:
     contour_idx_list = []
     for i in range(len(contours)):
         hull = cv2.convexHull(contours[i])
-        if np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1])) > 100 and np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0])) > 100 or i == 0:
+        if (np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1])) > 200 and np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0])) > 50) or i == 0:
             contour_idx_list.append(i)
             hull_list.append(hull)
 
     # Draw contours + hull results
-    drawing = np.zeros((canny_output.shape[0], canny_output.shape[1], 3), dtype=np.uint8)
+    drawing = frame
     for i in range(len(hull_list)):
         color = (rng.randint(0, 256), rng.randint(0, 256), rng.randint(0, 256))
         cv2.drawContours(drawing, contours, contour_idx_list[i], color)
         cv2.drawContours(drawing, hull_list, i, color)
 
-    # cv2.imshow('frame', frame)
-    # Show in a window
+    # add button & text
+    drawing = cv2.rectangle(drawing, (0, 0), (150, 100), (58, 134, 47), -1)
+    drawing = cv2.putText(drawing, 'Start', (30, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
 
-    cv2.imshow('real', frame)
+    # counter to start gesture recognition
+    # if start
+    if counter_sec > 0:
+        drawing = cv2.putText(drawing, str(floor(counter_sec)), (180, 75), cv2.FONT_HERSHEY_SIMPLEX, 2, (10, 10, 200), 2, cv2.LINE_AA)
+        time.sleep(0.05)
+        counter_sec -= 0.1
+        if counter_sec < 0.1:
+            counter_sec = 3.99
+
     cv2.imshow('res', res)
     cv2.imshow('mask', blurred)
     cv2.imshow('Contours', drawing)
