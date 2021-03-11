@@ -1,27 +1,25 @@
 # Import packages
 import os
-import argparse
 import cv2
 import numpy as np
-import sys
 import time
 from threading import Thread
-import importlib.util
 import random as rng
 from math import floor
-import matplotlib.pyplot as plt
+from tflite_runtime.interpreter import Interpreter
 
 rng.seed(12345)
 
 label_list = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
               'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
-              's', 't', 'u', 'v', 'w', 'x', 'y', 'z' 
+              's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
               'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
               'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
-# Source - Adrian Rosebrock, PyImageSearch: https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
+# Source - Adrian Rosebrock, PyImageSearch:
+# https://www.pyimagesearch.com/2015/12/28/increasing-raspberry-pi-fps-with-python-and-opencv/
 class VideoStream:
     """Camera object that controls video streaming from the Picamera"""
 
@@ -64,57 +62,31 @@ class VideoStream:
         self.stopped = True
 
 
-MODEL_NAME = "training"
-GRAPH_NAME = "model.tflite"
+model_name = "model.tflite"
 resW, resH = (1000, 1000)
-imW, imH = int(resW), int(resH)
-
-# Import TensorFlow libraries
-# If tflite_runtime is installed, import interpreter from tflite_runtime, else import from regular tensorflow
-# If using Coral Edge TPU, import the load_delegate library
-pkg = importlib.util.find_spec('tflite_runtime')
-if pkg:
-    from tflite_runtime.interpreter import Interpreter
-else:
-    from tensorflow.lite.python.interpreter import Interpreter
-
-# Get path to current working directory
-CWD_PATH = os.getcwd()
 
 # Path to .tflite file, which contains the model that is used for object detection
-PATH_TO_CKPT = os.path.join(CWD_PATH, GRAPH_NAME)
+PATH_TO_CKPT = os.path.join(os.getcwd(), model_name)
 
 # Load the Tensorflow Lite model.
 interpreter = Interpreter(model_path=PATH_TO_CKPT)
 interpreter.allocate_tensors()
-
-# Get model details
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 height = input_details[0]['shape'][1]
 width = input_details[0]['shape'][2]
 
-floating_model = (input_details[0]['dtype'] == np.float32)
-input_mean = 127.5
-input_std = 127.5
-threshold_canny = 100
-
-# Initialize frame rate calculation
-frame_rate_calc = 1
-freq = cv2.getTickFrequency()
-
 # Initialize video stream
-videostream = VideoStream(resolution=(imW, imH), framerate=30).start()
+floating_model = (input_details[0]['dtype'] == np.float32)
+threshold_canny = 100
+videostream = VideoStream(resolution=(resW, resH), framerate=30).start()
 time.sleep(1)
 
-# Create window
-cv2.namedWindow('Object detector', cv2.WINDOW_NORMAL)
-
 # for selecting hand
-skinColorUpper = np.array([20, 0.8 * 255, 0.8 * 255])
-skinColorLower = np.array([5, 0.2 * 255, 0.2 * 255])
+skin_color_upper = np.array([20, 0.8 * 255, 0.8 * 255])
+skin_color_lower = np.array([5, 0.2 * 255, 0.2 * 255])
 
-# counters
+# flags and storing values
 counter_sec = 3.99
 drawing_done_flag = False
 point_library = []
@@ -134,14 +106,6 @@ def hull_area(hull_list_input):
                hull_list_input[np.argmax(hull_area_list)][highest_idx, 0, 1])
     return highest
 
-# for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
-
-'''WindowName="Main View"
-view_window = cv2.namedWindow(WindowName,cv2.WINDOW_NORMAL)
-
-# These two lines will force the window to be on top with focus.
-cv2.setWindowProperty(WindowName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
-cv2.setWindowProperty(WindowName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_NORMAL)'''
 
 while True:
     # Start timer (for calculating frame rate)
@@ -153,26 +117,27 @@ while True:
     # apply mask on hand skin
     # https://docs.opencv.org/3.0-beta/doc/py_tutorials/py_imgproc/py_colorspaces/py_colorspaces.html
     frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(frame_hsv, skinColorLower, skinColorUpper)
+    mask = cv2.inRange(frame_hsv, skin_color_lower, skin_color_upper)
     res = cv2.bitwise_and(frame, frame, mask=mask)
 
     # smooth mask
-    blurred = cv2.GaussianBlur(mask, (21, 21), 8)
-    blurred = (blurred > 127) * 255
-    blurred = np.array(blurred).astype('uint8')
+    blurred = cv2.GaussianBlur(mask, (21, 21), 8)#
+    blurred = np.array((blurred > 127) * 255).astype('uint8')
 
     # detect edges on skin
     canny_output = cv2.Canny(blurred, threshold_canny, threshold_canny * 2)
-    # cv2.imshow('Contours', canny_output)
 
     # Find contours
     contours, _ = cv2.findContours(canny_output, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
     # Find the convex hull object for each contour
     hull_list = []
     contour_idx_list = []
     for i in range(len(contours)):
         hull = cv2.convexHull(contours[i])
-        if (np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1])) > 200 and np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0])) > 50) or i < 2:
+        x_hull = np.abs(np.min(hull[:, :, 1]) - np.max(hull[:, :, 1]))
+        y_hull = np.abs(np.min(hull[:, :, 0]) - np.max(hull[:, :, 0]))
+        if x_hull > 200 and y_hull > 50 or i < 2:
             contour_idx_list.append(i)
             hull_list.append(hull)
 
@@ -190,7 +155,8 @@ while True:
     # counter to start gesture recognition
     highest = hull_area(hull_list)
     if 0 < highest[0] < 150 and 0 < highest[1] < 100:
-        drawing = cv2.putText(drawing, str(floor(counter_sec)), (180, 75), cv2.FONT_HERSHEY_SIMPLEX, 2, (10, 10, 200), 2, cv2.LINE_AA)
+        drawing = cv2.putText(drawing, str(floor(counter_sec)), (180, 75),
+                              cv2.FONT_HERSHEY_SIMPLEX, 2, (10, 10, 200), 2, cv2.LINE_AA)
         time.sleep(0.05)
         counter_sec -= 0.1
         if counter_sec < 0.1:
@@ -226,7 +192,8 @@ while True:
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])
         pred = np.argmax(output_data[0])
-        drawing = cv2.putText(drawing, label_list[pred], (300, 300), cv2.FONT_HERSHEY_SIMPLEX, 3, (10, 10, 200), 3, cv2.LINE_AA)
+        drawing = cv2.putText(drawing, label_list[pred], (300, 300), cv2.FONT_HERSHEY_SIMPLEX,
+                              3, (10, 10, 200), 3, cv2.LINE_AA)
 
     cv2.imshow('WindowName', drawing)
     k = cv2.waitKey(5)
