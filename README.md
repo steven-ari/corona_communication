@@ -2,6 +2,12 @@
 
 Alphabet recognition using real time finger gesturing. This way, it is possible to communicate purely with finger gestures, including to machines to prevent contacts with button on public places.
 
+### Example (letter c)
+![](sample_images/c.gif)
+
+### Example (number 1)
+![](sample_images/1.gif)
+
 ### System
 
 1. Raspberry Pi 4 Model B
