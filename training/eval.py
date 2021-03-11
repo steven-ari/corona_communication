@@ -1,24 +1,3 @@
-######## Webcam Object Detection Using Tensorflow-trained Classifier #########
-#
-# Author: Evan Juras
-# Date: 10/27/19
-# Description:
-# This program uses a TensorFlow Lite model to perform object detection on a live webcam
-# feed. It draws boxes and scores around the objects of interest in each frame from the
-# webcam. To improve FPS, the webcam object runs in a separate thread from the main program.
-# This script will work with either a Picamera or regular USB webcam.
-#
-# This code is based off the TensorFlow Lite image classification example at:
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/examples/python/label_image.py
-#
-# I added my own method of drawing boxes and labels using OpenCV.
-#
-# Modified by: Shawn Hymel
-# Date: 09/22/20
-# Description:
-# Added ability to resize cv2 window and added center dot coordinates of each detected object.
-# Objects and center coordinates are printed to console.
-
 # Import packages
 import os
 import argparse
@@ -33,6 +12,12 @@ from math import floor
 import matplotlib.pyplot as plt
 
 rng.seed(12345)
+
+label_list = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+              'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r',
+              's', 't', 'u', 'v', 'w', 'x', 'y', 'z' 
+              'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
+              'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 
 # Define VideoStream class to handle streaming of video from webcam in separate processing thread
@@ -150,6 +135,14 @@ def hull_area(hull_list_input):
     return highest
 
 # for frame1 in camera.capture_continuous(rawCapture, format="bgr",use_video_port=True):
+
+'''WindowName="Main View"
+view_window = cv2.namedWindow(WindowName,cv2.WINDOW_NORMAL)
+
+# These two lines will force the window to be on top with focus.
+cv2.setWindowProperty(WindowName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+cv2.setWindowProperty(WindowName,cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_NORMAL)'''
+
 while True:
     # Start timer (for calculating frame rate)
     t1 = cv2.getTickCount()
@@ -170,7 +163,7 @@ while True:
 
     # detect edges on skin
     canny_output = cv2.Canny(blurred, threshold_canny, threshold_canny * 2)
-    cv2.imshow('Contours', canny_output)
+    # cv2.imshow('Contours', canny_output)
 
     # Find contours
     contours, _ = cv2.findContours(canny_output, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -210,7 +203,7 @@ while True:
     # calculate highest, mark with red ball
     for points in point_library:
         drawing = cv2.circle(drawing, (points[0], points[1]), 20, (200, 10, 10), -1)
-    if len(point_library) > 200:
+    if len(point_library) > 100:
         drawing_done_flag = True
     drawing = cv2.circle(drawing, (highest[0], highest[1]), 20, (10, 10, 200), -1)
 
@@ -223,7 +216,6 @@ while True:
         # crop
         pred_canvas = pred_canvas[:, 210:(210+540), 0]
         pred_canvas = cv2.resize(pred_canvas, (28, 28), interpolation=cv2.INTER_NEAREST)
-        a = 1
 
         # Acquire frame and resize to expected shape [1xHxWx3]
         input_data = np.expand_dims(pred_canvas, axis=0).astype('float32')
@@ -234,9 +226,9 @@ while True:
         interpreter.invoke()
         output_data = interpreter.get_tensor(output_details[0]['index'])
         pred = np.argmax(output_data[0])
-        drawing = cv2.putText(drawing, str(pred), (300, 300), cv2.FONT_HERSHEY_SIMPLEX, 3, (10, 10, 200), 2, cv2.LINE_AA)
+        drawing = cv2.putText(drawing, label_list[pred], (300, 300), cv2.FONT_HERSHEY_SIMPLEX, 3, (10, 10, 200), 3, cv2.LINE_AA)
 
-    cv2.imshow('Contours', drawing)
+    cv2.imshow('WindowName', drawing)
     k = cv2.waitKey(5)
 
 cv2.destroyAllWindows()
